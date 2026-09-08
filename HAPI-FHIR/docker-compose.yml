@@ -1,0 +1,46 @@
+services:
+  hapi-postgres:
+    image: postgres:16-alpine
+    container_name: triaje-hapi-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${HAPI_DB_NAME}
+      POSTGRES_USER: ${HAPI_DB_USER}
+      POSTGRES_PASSWORD: ${HAPI_DB_PASSWORD}
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${HAPI_DB_USER} -d ${HAPI_DB_NAME}
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 10
+
+    volumes:
+      - hapi_postgres_data:/var/lib/postgresql/data
+
+  hapi-fhir:
+    image: hapiproject/hapi:latest
+    container_name: triaje-hapi-fhir
+    restart: unless-stopped
+
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://hapi-postgres:5432/${HAPI_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${HAPI_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${HAPI_DB_PASSWORD}
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      HIBERNATE_DIALECT: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
+      HAPI_FHIR_FHIR_VERSION: R4
+      HAPI_FHIR_OPENAPI_ENABLED: "true"
+
+    ports:
+      - "8080:8080"
+
+    depends_on:
+      hapi-postgres:
+        condition: service_healthy
+
+volumes:
+  hapi_postgres_data:
